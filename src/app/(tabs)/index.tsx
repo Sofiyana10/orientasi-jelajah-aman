@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import AtribusiCuaca from "../../components/AtribusiCuaca";
@@ -152,6 +154,7 @@ export default function HalamanUtama() {
         </View>
       )}
 
+      
       {cuaca && kualitasUdara && kotaTerpilih && !sedangMemuat && (
         <>
           <WeatherCard
@@ -161,9 +164,28 @@ export default function HalamanUtama() {
             indeksAQI={kualitasUdara.indeksAQI}
           />
 
-          <Text>Suhu maksimal hari ini: {cuaca.harian.suhuMaksimal[0]}°C</Text>
+          <Button
+            title="Tambahkan ke Favorit"
+            onPress={() =>
+              router.push({
+                pathname: "/tambah-favorit",
+                params: {
+                  id: String(kotaTerpilih.id),
+                  nama: kotaTerpilih.name,
+                  lat: String(kotaTerpilih.latitude),
+                  lon: String(kotaTerpilih.longitude),
+                },
+              })
+            }
+          />
 
-          <Text>Suhu minimal hari ini: {cuaca.harian.suhuMinimal[0]}°C</Text>
+          <Text>
+            Suhu maksimal hari ini: {cuaca.harian.suhuMaksimal[0]}°C
+          </Text>
+
+          <Text>
+            Suhu minimal hari ini: {cuaca.harian.suhuMinimal[0]}°C
+          </Text>
         </>
       )}
 
