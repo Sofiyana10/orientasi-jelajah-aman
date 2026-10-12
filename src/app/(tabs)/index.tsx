@@ -1,43 +1,44 @@
 // src/app/(tabs)/index.tsx
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
   ActivityIndicator,
   Button,
+  Text,
   TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import AtribusiCuaca from "../../components/AtribusiCuaca";
 import SearchBox from "../../components/SearchBox";
 import WeatherCard from "../../components/WeatherCard";
-import AtribusiCuaca from "../../components/AtribusiCuaca";
 
 import { useDebounce } from "../../hooks/use-debounce";
-import { cariKota } from "../../services/geocodingService";
-import { ambilCuaca } from "../../services/weatherService";
 import { ambilKualitasUdara } from "../../services/airQualityService";
+import { cariKota } from "../../services/geocodingService";
+import {
+  ambilKoordinatSaatIni,
+  mintaIzinLokasi,
+} from "../../services/locationService";
 import { konversiTingkatAQI } from "../../services/weatherAdapter";
-import { labelKodeCuaca } from "../../constants/weatherCodes";
+import { ambilCuaca } from "../../services/weatherService";
 
 import { HasilGeocoding } from "../../types/geocoding";
-import {
-  DataCuacaLengkap,
-  DataKualitasUdara,
-} from "../../types/weather";
+import { DataCuacaLengkap, DataKualitasUdara } from "../../types/weather";
 
 export default function HalamanUtama() {
   const [teksCari, setTeksCari] = useState("");
   const [hasilPencarian, setHasilPencarian] = useState<HasilGeocoding[]>([]);
-  const [kotaTerpilih, setKotaTerpilih] =
-    useState<HasilGeocoding | null>(null);
+  const [kotaTerpilih, setKotaTerpilih] = useState<HasilGeocoding | null>(null);
 
   const [cuaca, setCuaca] = useState<DataCuacaLengkap | null>(null);
-  const [kualitasUdara, setKualitasUdara] =
-    useState<DataKualitasUdara | null>(null);
+  const [kualitasUdara, setKualitasUdara] = useState<DataKualitasUdara | null>(
+    null,
+  );
 
   const [sedangMemuat, setSedangMemuat] = useState(false);
   const [pesanError, setPesanError] = useState<string | null>(null);
+  const [pesanLokasi, setPesanLokasi] = useState<string | null>(null);
 
   const teksTertunda = useDebounce(teksCari, 500);
 
@@ -77,14 +78,37 @@ export default function HalamanUtama() {
     } catch (err) {
       if (idSaatIni !== requestIdRef.current) return;
 
-      setPesanError(
-        "Gagal memuat data cuaca. Periksa koneksi internet Anda."
-      );
+      setPesanError("Gagal memuat data cuaca. Periksa koneksi internet Anda.");
     } finally {
       if (idSaatIni === requestIdRef.current) {
         setSedangMemuat(false);
       }
     }
+  }
+
+  async function gunakanLokasiSaatIni() {
+    const status = await mintaIzinLokasi();
+    if (status === "denied") {
+      setPesanLokasi(
+        "Izin lokasi ditolak. Silakan cari kota secara manual di atas.",
+      );
+      return;
+    }
+    if (status === "unavailable") {
+      setPesanLokasi(
+        "Layanan lokasi tidak aktif di perangkat ini. Silakan cari kota secara manual.",
+      );
+      return;
+    }
+    setPesanLokasi(null);
+    const koordinat = await ambilKoordinatSaatIni();
+    pilihKota({
+      id: -1,
+      name: "Lokasi Saat Ini",
+      latitude: koordinat.latitude,
+      longitude: koordinat.longitude,
+      country: "",
+    });
   }
 
   return (
@@ -96,6 +120,9 @@ export default function HalamanUtama() {
       }}
     >
       <SearchBox onCari={setTeksCari} />
+
+      <Button title="Gunakan Lokasi Saat Ini" onPress={gunakanLokasiSaatIni} />
+      {pesanLokasi && <Text>{pesanLokasi}</Text>}
 
       {hasilPencarian.map((kota) => (
         <TouchableOpacity
@@ -125,29 +152,20 @@ export default function HalamanUtama() {
         </View>
       )}
 
-      {cuaca &&
-        kualitasUdara &&
-        kotaTerpilih &&
-        !sedangMemuat && (
-          <>
-            <WeatherCard
-              kota={kotaTerpilih.name}
-              suhu={cuaca.saatIni.suhu}
-              tingkatAQI={konversiTingkatAQI(
-                kualitasUdara.indeksAQI
-              )}
-              indeksAQI={kualitasUdara.indeksAQI}
-            />
+      {cuaca && kualitasUdara && kotaTerpilih && !sedangMemuat && (
+        <>
+          <WeatherCard
+            kota={kotaTerpilih.name}
+            suhu={cuaca.saatIni.suhu}
+            tingkatAQI={konversiTingkatAQI(kualitasUdara.indeksAQI)}
+            indeksAQI={kualitasUdara.indeksAQI}
+          />
 
-            <Text>
-              Suhu maksimal hari ini: {cuaca.harian.suhuMaksimal[0]}°C
-            </Text>
+          <Text>Suhu maksimal hari ini: {cuaca.harian.suhuMaksimal[0]}°C</Text>
 
-            <Text>
-              Suhu minimal hari ini: {cuaca.harian.suhuMinimal[0]}°C
-            </Text>
-          </>
-        )}
+          <Text>Suhu minimal hari ini: {cuaca.harian.suhuMinimal[0]}°C</Text>
+        </>
+      )}
 
       {cuaca && (
         <Text style={{ fontSize: 12, color: "#888" }}>
