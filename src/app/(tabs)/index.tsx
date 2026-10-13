@@ -1,5 +1,5 @@
 // src/app/(tabs)/index.tsx
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Button,
@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import AtribusiCuaca from "../../components/AtribusiCuaca";
@@ -17,6 +17,7 @@ import WeatherCard from "../../components/WeatherCard";
 
 import { useDebounce } from "../../hooks/use-debounce";
 import { ambilKualitasUdara } from "../../services/airQualityService";
+import { ambilSemuaFavorit } from "../../services/favoritStorage";
 import { cariKota } from "../../services/geocodingService";
 import {
   ambilKoordinatSaatIni,
@@ -24,6 +25,7 @@ import {
 } from "../../services/locationService";
 import { konversiTingkatAQI } from "../../services/weatherAdapter";
 import { ambilCuaca } from "../../services/weatherService";
+import type { KotaFavorit } from "../../types/favorit";
 
 import { HasilGeocoding } from "../../types/geocoding";
 import { DataCuacaLengkap, DataKualitasUdara } from "../../types/weather";
@@ -32,6 +34,7 @@ export default function HalamanUtama() {
   const [teksCari, setTeksCari] = useState("");
   const [hasilPencarian, setHasilPencarian] = useState<HasilGeocoding[]>([]);
   const [kotaTerpilih, setKotaTerpilih] = useState<HasilGeocoding | null>(null);
+  const [daftarFavorit, setDaftarFavorit] = useState<KotaFavorit[]>([]);
 
   const [cuaca, setCuaca] = useState<DataCuacaLengkap | null>(null);
   const [kualitasUdara, setKualitasUdara] = useState<DataKualitasUdara | null>(
@@ -57,6 +60,30 @@ export default function HalamanUtama() {
       .then(setHasilPencarian)
       .catch(() => setHasilPencarian([]));
   }, [teksTertunda]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let aktif = true;
+
+      ambilSemuaFavorit()
+        .then((favorit) => {
+          if (aktif) {
+            setDaftarFavorit(favorit);
+          }
+        })
+        .catch((err) => {
+          console.error("Gagal mengambil daftar favorit:", err);
+        });
+
+      return () => {
+        aktif = false;
+      };
+    }, []),
+  );
+
+  const sudahFavorit =
+    kotaTerpilih !== null &&
+    daftarFavorit.some((favorit) => favorit.id === kotaTerpilih.id);
 
   async function pilihKota(kota: HasilGeocoding) {
     setKotaTerpilih(kota);
@@ -154,7 +181,6 @@ export default function HalamanUtama() {
         </View>
       )}
 
-      
       {cuaca && kualitasUdara && kotaTerpilih && !sedangMemuat && (
         <>
           <WeatherCard
@@ -165,7 +191,8 @@ export default function HalamanUtama() {
           />
 
           <Button
-            title="Tambahkan ke Favorit"
+            title={sudahFavorit ? "Sudah di Favorit" : "Tambahkan ke Favorit"}
+            disabled={sudahFavorit}
             onPress={() =>
               router.push({
                 pathname: "/tambah-favorit",
@@ -179,13 +206,9 @@ export default function HalamanUtama() {
             }
           />
 
-          <Text>
-            Suhu maksimal hari ini: {cuaca.harian.suhuMaksimal[0]}°C
-          </Text>
+          <Text>Suhu maksimal hari ini: {cuaca.harian.suhuMaksimal[0]}°C</Text>
 
-          <Text>
-            Suhu minimal hari ini: {cuaca.harian.suhuMinimal[0]}°C
-          </Text>
+          <Text>Suhu minimal hari ini: {cuaca.harian.suhuMinimal[0]}°C</Text>
         </>
       )}
 
