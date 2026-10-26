@@ -54,3 +54,9 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Status Data Cuaca
+
+Cache-segar adalah data cuaca yang masih baru dan bisa langsung digunakan tanpa harus mengambil data lagi dari internet.
+Cache-basi adalah data cuaca yang sudah melewati batas waktu penyimpanan, tetapi masih bisa digunakan sebagai cadangan saat internet tidak tersedia.
+First-run offline adalah kondisi saat aplikasi pertama kali dibuka tanpa internet dan belum ada data cuaca yang tersimpan. Label status data penting agar pengguna mengetahui asal dan kondisi data cuaca yang ditampilkan, sehingga tidak mengira data lama sebagai data terbaru.
