@@ -1,7 +1,7 @@
 // src/app/(tabs)/riwayat.tsx
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, Button, Text, View } from "react-native";
+import { Alert, Button, Platform, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ambilSemuaFavorit, hapusFavorit } from "../../services/favoritStorage";
 import { KotaFavorit } from "../../types/favorit";
@@ -14,29 +14,32 @@ export default function TabRiwayat() {
       ambilSemuaFavorit().then(setDaftarFavorit);
     }, []),
   );
+  
 
   function konfirmasiHapus(id: number, namaKota: string) {
-    console.log("Tombol hapus ditekan:", namaKota);
+    if (Platform.OS === "web") {
+      const yakin = window.confirm(`Yakin hapus ${namaKota}?`);
 
-    Alert.alert(
-      "Konfirmasi Hapus",
-      `Yakin hapus ${namaKota}?`,
-      [
-        {
-          text: "Batal",
-          onPress: () => console.log("Batal menghapus"),
-          style: "cancel",
+      if (yakin) {
+        void hapus(id);
+      }
+
+      return;
+    }
+
+    Alert.alert("Konfirmasi Hapus", `Yakin hapus ${namaKota}?`, [
+      {
+        text: "Batal",
+        style: "cancel",
+      },
+      {
+        text: "Hapus",
+        style: "destructive",
+        onPress: () => {
+          void hapus(id);
         },
-        {
-          text: "Hapus",
-          onPress: () => {
-            void hapus(id);
-          },
-          style: "destructive",
-        },
-      ],
-      { cancelable: true },
-    );
+      },
+    ]);
   }
 
   async function hapus(id: number) {

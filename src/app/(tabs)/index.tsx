@@ -17,6 +17,7 @@ import WeatherCard from "../../components/WeatherCard";
 
 import { useDebounce } from "../../hooks/use-debounce";
 import { ambilKualitasUdara } from "../../services/airQualityService";
+import { ambilCacheUntukKota, cariKotaDiCache, simpanCacheCuaca } from "../../services/cuacaCache";
 import { ambilSemuaFavorit } from "../../services/favoritStorage";
 import { cariKota } from "../../services/geocodingService";
 import {
@@ -51,14 +52,55 @@ export default function HalamanUtama() {
   const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (teksTertunda.trim().length === 0) {
-      setHasilPencarian([]);
-      return;
+    let aktif = true;
+
+    async function cariKotaLokalDanOnline() {
+      const kata = teksTertunda.trim();
+
+      if (!kata) {
+        setHasilPencarian([]);
+        return;
+      }
+
+      // Coba cari lewat internet terlebih dahulu
+      try {
+        const hasilOnline = await cariKota(kata);
+
+        if (!aktif) return;
+
+        if (hasilOnline.length > 0) {
+          setHasilPencarian(hasilOnline);
+          return;
+        }
+      } catch {
+        // Jika internet gagal, lanjutkan ke cache lokal
+      }
+
+      // Cari kota yang pernah tersimpan di cache
+      try {
+        const hasilCache = await cariKotaDiCache(kata);
+
+        if (!aktif) return;
+
+        setHasilPencarian(
+          hasilCache.map((item, index) => ({
+            id: -(index + 1),
+            name: item.namaKota,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            country: "",
+          })),
+        );
+      } catch {
+        if (aktif) setHasilPencarian([]);
+      }
     }
 
-    cariKota(teksTertunda)
-      .then(setHasilPencarian)
-      .catch(() => setHasilPencarian([]));
+    cariKotaLokalDanOnline();
+
+    return () => {
+      aktif = false;
+    };
   }, [teksTertunda]);
 
   useFocusEffect(
@@ -102,12 +144,52 @@ export default function HalamanUtama() {
       // Jika ada request yang lebih baru, abaikan hasil lama
       if (idSaatIni !== requestIdRef.current) return;
 
+      // Tampilkan data cuaca di halaman
       setCuaca(dataCuaca);
       setKualitasUdara(dataAQI);
-    } catch (err) {
+
+      // Simpan data cuaca ke cache secara otomatis
+      try {
+        await simpanCacheCuaca({
+          namaKota: kota.name,
+          latitude: kota.latitude,
+          longitude: kota.longitude,
+          cuaca: dataCuaca,
+          kualitasUdara: dataAQI,
+          waktuSimpan: Date.now(),
+        });
+
+        console.log("Data cuaca berhasil disimpan ke cache");
+      } catch (error) {
+        console.warn("Gagal menyimpan cache cuaca:", error);
+      }
+    } catch {
       if (idSaatIni !== requestIdRef.current) return;
 
-      setPesanError("Gagal memuat data cuaca. Periksa koneksi internet Anda.");
+      // Jika internet gagal, ambil cuaca terakhir dari cache
+      try {
+        const cache = await ambilCacheUntukKota(kota.name);
+
+        if (idSaatIni !== requestIdRef.current) return;
+
+        if (cache) {
+          setCuaca(cache.cuaca);
+          setKualitasUdara(cache.kualitasUdara);
+          setPesanError(null);
+
+          console.log(`Menampilkan cache cuaca untuk ${cache.namaKota}`);
+        } else {
+          setCuaca(null);
+          setKualitasUdara(null);
+          setPesanError(
+            `Data cuaca ${kota.name} belum tersimpan. Hubungkan internet untuk memuatnya.`,
+          );
+        }
+      } catch {
+        if (idSaatIni !== requestIdRef.current) return;
+
+        setPesanError("Gagal membaca cache cuaca.");
+      }
     } finally {
       if (idSaatIni === requestIdRef.current) {
         setSedangMemuat(false);
