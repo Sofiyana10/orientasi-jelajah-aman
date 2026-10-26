@@ -44,3 +44,5 @@ example
 
 # npm cache lokal
 npm-cache-baru/
+
+package-lock.backup.json
