@@ -1,6 +1,6 @@
 // src/app/(tabs)/index.tsx
-import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Button,
@@ -17,6 +17,7 @@ import StatusData from "../../components/StatusData";
 import WeatherCard from "../../components/WeatherCard";
 
 import { labelKodeCuaca } from "../../constants/weatherCodes";
+import { useTema } from "../../contexts/themeContext";
 import { useDebounce } from "../../hooks/use-debounce";
 import {
   bersihkanCacheLama,
@@ -31,6 +32,7 @@ import {
   ambilKoordinatSaatIni,
   mintaIzinLokasi,
 } from "../../services/locationService";
+import { simpanRiwayatPencarian } from "../../services/riwayatPencarian";
 import { konversiTingkatAQI } from "../../services/weatherAdapter";
 
 import type {
@@ -44,6 +46,7 @@ export default function HalamanUtama() {
   const [hasilPencarian, setHasilPencarian] = useState<HasilGeocoding[]>([]);
   const [kotaTerpilih, setKotaTerpilih] = useState<HasilGeocoding | null>(null);
   const [hasil, setHasil] = useState<HasilCuacaOffline | null>(null);
+  const { warna } = useTema();
   const [kotaTersimpan, setKotaTersimpan] = useState<RingkasanKotaTersimpan[]>(
     [],
   );
@@ -51,8 +54,17 @@ export default function HalamanUtama() {
   const [pesanError, setPesanError] = useState<string | null>(null);
   const [pesanLokasi, setPesanLokasi] = useState<string | null>(null);
 
+  const params = useLocalSearchParams<{
+    kotaId?: string;
+    nama?: string;
+    latitude?: string;
+    longitude?: string;
+    negara?: string;
+  }>();
+
   const teksTertunda = useDebounce(teksCari, 500);
   const requestIdRef = useRef(0);
+  const parameterDiprosesRef = useRef("");
 
   // Memuat daftar kota yang tersimpan di perangkat.
   async function muatKotaTersimpan() {
@@ -79,8 +91,22 @@ export default function HalamanUtama() {
   }, [teksTertunda]);
 
   // Memilih kota dan mengambil data cuaca.
+
   async function pilihKota(kota: HasilGeocoding, paksaPerbarui = false) {
     setKotaTerpilih(kota);
+
+    // Simpan kota ke riwayat pencarian.
+    try {
+      await simpanRiwayatPencarian({
+        id: kota.id,
+        nama: kota.name,
+        latitude: kota.latitude,
+        longitude: kota.longitude,
+        negara: kota.country ?? "",
+      });
+    } catch (error) {
+      console.error("Gagal menyimpan riwayat pencarian:", error);
+    }
 
     const idSaatIni = ++requestIdRef.current;
 
@@ -154,9 +180,67 @@ export default function HalamanUtama() {
     }
   }
 
+  // Membuka kota yang dipilih dari tab Riwayat.
+  useEffect(() => {
+    const { kotaId, nama, latitude, longitude, negara } = params;
+
+    if (!kotaId || !nama || !latitude || !longitude) {
+      parameterDiprosesRef.current = "";
+      return;
+    }
+
+    const kunciParameter = `${kotaId}-${nama}-${latitude}-${longitude}`;
+
+    if (parameterDiprosesRef.current === kunciParameter) {
+      return;
+    }
+
+    const id = Number(kotaId);
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+
+    if (
+      !Number.isFinite(id) ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ) {
+      return;
+    }
+
+    parameterDiprosesRef.current = kunciParameter;
+
+    void pilihKota({
+      id,
+      name: nama,
+      latitude: lat,
+      longitude: lon,
+      country: negara ?? "",
+    });
+
+    router.setParams({
+      kotaId: "",
+      nama: "",
+      latitude: "",
+      longitude: "",
+      negara: "",
+    });
+  }, [
+    params.kotaId,
+    params.nama,
+    params.latitude,
+    params.longitude,
+    params.negara,
+  ]);
+
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: warna.background,
+      }}
+    >
       <ScrollView
+        style={{ backgroundColor: warna.background }}
         contentContainerStyle={{ padding: 16, gap: 16 }}
         keyboardShouldPersistTaps="handled"
       >
@@ -174,7 +258,7 @@ export default function HalamanUtama() {
         {/* Hasil pencarian kota */}
         {hasilPencarian.map((kota) => (
           <TouchableOpacity key={kota.id} onPress={() => pilihKota(kota)}>
-            <Text>{kota.name}</Text>
+            <Text style={{ color: warna.text }}>{kota.name}</Text>
           </TouchableOpacity>
         ))}
 
